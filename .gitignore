@@ -1,3 +1,10 @@
 .direnv
-
 target
+NOTES*
+*.log
+*.bin
+*.txt
+
+src/dumps
+src/port
+dumps
