@@ -160,6 +160,42 @@ fn debug_scan_all_buses() {
     println!("=== End Scan ===");
 }
 
+fn egpu_present() -> bool {
+    w8(0x00, 0x02, 0x01, 0x19, BUS_UPSTREAM);  // root port secondary
+    w8(0x00, 0x02, 0x01, 0x1A, BUS_GPU);        // root port subordinate
+
+    if (r32(BUS_UPSTREAM, 0, 0, 0x00) & 0xFFFF) != 0x1002 {
+        w8(0x00, 0x02, 0x01, 0x19, 0x00);
+        w8(0x00, 0x02, 0x01, 0x1A, 0x00);
+        return false;
+    }
+
+    w8(BUS_UPSTREAM, 0, 0, 0x19, BUS_DOWNSTREAM); // upstream switch secondary
+    w8(BUS_UPSTREAM, 0, 0, 0x1A, BUS_GPU);         // upstream switch subordinate
+
+    if (r32(BUS_DOWNSTREAM, 0, 0, 0x00) & 0xFFFF) != 0x1002 {
+        w8(BUS_UPSTREAM, 0, 0, 0x19, 0x00);
+        w8(BUS_UPSTREAM, 0, 0, 0x1A, 0x00);
+        w8(0x00, 0x02, 0x01, 0x19, 0x00);
+        w8(0x00, 0x02, 0x01, 0x1A, 0x00);
+        return false;
+    }
+
+    w8(BUS_DOWNSTREAM, 0, 0, 0x19, BUS_GPU); // downstream switch secondary
+    w8(BUS_DOWNSTREAM, 0, 0, 0x1A, BUS_GPU); // downstream switch subordinate
+
+    let gpu_id = r32(BUS_GPU, 0, 0, 0x00);
+
+    w8(BUS_DOWNSTREAM, 0, 0, 0x19, 0x00);
+    w8(BUS_DOWNSTREAM, 0, 0, 0x1A, 0x00);
+    w8(BUS_UPSTREAM,   0, 0, 0x19, 0x00);
+    w8(BUS_UPSTREAM,   0, 0, 0x1A, 0x00);
+    w8(0x00, 0x02, 0x01, 0x19, 0x00);
+    w8(0x00, 0x02, 0x01, 0x1A, 0x00);
+
+    gpu_id == 0x73BF_1002 // Navi21 / RX 6800 XT
+}
+
 fn disable_aspm_root_port() {
     if let Some(pcie_cap) = find_pcie_cap(0x00, 0x02, 0x01) {
         let link_ctrl = r16(0x00, 0x02, 0x01, (pcie_cap + 0x10) as u16);
@@ -295,6 +331,10 @@ fn config_upstream_switch() {
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().unwrap();
+
+    if !egpu_present() {
+        return Status::SUCCESS;
+    }
 
     config_bridges();
     config_upstream_switch();

@@ -27,16 +27,18 @@
   in {
     devShells = eachSystem (system: {
       default = let
-        rustToolchain = (pkgsFor system).rust-bin.stable.latest.default.override {
+        pkgs = (pkgsFor system);
+        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = ["rust-src" "rust-analyzer"];
           targets = ["x86_64-unknown-uefi"];
         };
       in
-        (pkgsFor system).mkShell {
+        pkgs.mkShell {
           name = "egpu-init-devel";
 
           nativeBuildInputs = [
             rustToolchain
+            pkgs.coreboot-toolchain.x64
           ];
         };
     });
